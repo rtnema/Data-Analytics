@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Workforce percent by industry</title>
+<style>
+:root{
+  --border:#e3e1d9; --border-strong:#c9c7bd; --text-primary:#1d1d1b; --text-secondary:#5f5e5a;
+  --surface-1:#f4f3ee; --surface-2:#ffffff; --radius:8px; --text-accent:#185fa5;
+  --font-sans:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;
+  --font-mono:ui-monospace,SFMono-Regular,Menlo,monospace;
+  --ind-manu-bg:#FAECE7; --ind-manu-text:#712B13;
+  --ind-it-bg:#E1F5EE; --ind-it-text:#085041;
+  --ind-retail-bg:#EEEDFE; --ind-retail-text:#3C3489;
+  --ind-wholesale-bg:#FAEEDA; --ind-wholesale-text:#633806;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --border:#3a3a37; --border-strong:#54534f; --text-primary:#f0efe9; --text-secondary:#b0aea4;
+    --surface-1:#262623; --surface-2:#1c1c1a; --text-accent:#85b7eb;
+    --ind-manu-bg:#712B13; --ind-manu-text:#F5C4B3;
+    --ind-it-bg:#085041; --ind-it-text:#9FE1CB;
+    --ind-retail-bg:#3C3489; --ind-retail-text:#CECBF6;
+    --ind-wholesale-bg:#633806; --ind-wholesale-text:#FAC775;
+  }
+  body{background:#141413;}
+}
+*{box-sizing:border-box;}
+body{
+  font-family:var(--font-sans); color:var(--text-primary); background:var(--surface-1);
+  max-width:720px; margin:0 auto; padding:2rem 1rem;
+}
+.card{background:var(--surface-2); border:0.5px solid var(--border); border-radius:12px; padding:1.5rem;}
+h1{font-size:18px; font-weight:500; text-align:center; margin:0 0 1.25rem;}
+table{width:100%; border-collapse:collapse; font-size:13px;}
+th,td{padding:8px 10px; text-align:left; border-bottom:0.5px solid var(--border);}
+th{color:var(--text-secondary); font-weight:500; font-size:12px;}
+tfoot td{border-bottom:none; border-top:0.5px solid var(--border-strong); padding-top:10px;}
+.ind-badge{padding:2px 8px; border-radius:6px; font-size:12px; font-weight:500; display:inline-block; white-space:nowrap;}
+.fade-row{opacity:0; animation:fadeIn .4s ease forwards;}
+@keyframes fadeIn{from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:translateY(0);}}
+.active-row{background:var(--surface-1); transition:background .25s;}
+.step-label{text-align:center; font-size:14px; font-weight:500; margin-bottom:6px;}
+.stepper-dots{display:flex; gap:6px; justify-content:center; margin-bottom:1rem;}
+.dot{width:7px; height:7px; border-radius:50%; background:var(--border-strong);}
+.dot.active{background:var(--text-accent);}
+.nav-btns{display:flex; justify-content:space-between; margin-top:1.25rem;}
+button{
+  font-family:inherit; font-size:13px; padding:8px 14px; border-radius:var(--radius);
+  border:0.5px solid var(--border-strong); background:transparent; color:var(--text-primary); cursor:pointer;
+}
+button:hover{background:var(--surface-1);}
+button:disabled{opacity:.4; cursor:default;}
+.calc-line{font-size:13px; color:var(--text-secondary); font-family:var(--font-mono);}
+.box-grid{display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px; margin-bottom:1rem;}
+.ind-box{background:var(--surface-1); border-radius:var(--radius); padding:.6rem; text-align:center;}
+.ind-box .lbl{font-size:11px; color:var(--text-secondary);}
+.ind-box .val{font-size:17px; font-weight:500; margin-top:4px;}
+.side-by-side{display:flex; gap:10px; align-items:center;}
+.panel{flex:1; min-width:0;}
+.panel h3{font-size:12px; color:var(--text-secondary); font-weight:500; margin:0 0 6px; text-align:center;}
+table.compact th, table.compact td{padding:5px 6px; font-size:12px;}
+.ellipsis{overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:80px;}
+.arrow-mid{display:flex; flex-direction:column; align-items:center; justify-content:center; min-width:34px;}
+.arrow-ico{font-size:24px; color:var(--text-accent); line-height:1;}
+.arrow-label{font-size:10px; color:var(--text-secondary); margin-top:2px; text-align:center; white-space:nowrap;}
+@keyframes arrowPulse{0%,100%{transform:translateX(0); opacity:.7;} 50%{transform:translateX(5px); opacity:1;}}
+.arrow-ico{animation:arrowPulse 1.4s ease-in-out infinite;}
+@media (prefers-reduced-motion: reduce){ .arrow-ico{animation:none;} }
+.calc-cell{font-family:var(--font-mono); font-size:12px;}
+.sr-only{position:absolute; width:1px; height:1px; overflow:hidden;}
+</style>
+</head>
+<body>
+<div class="card">
+  <h2 class="sr-only">Animated walkthrough showing raw establishment data grouped into industry totals, then converted into percent of total workers.</h2>
+  <h1>Percent of workers by industry</h1>
+  <div class="step-label" id="stepLabel"></div>
+  <div class="stepper-dots" id="dots"></div>
+  <div id="stage"></div>
+  <div class="nav-btns">
+    <button id="prevBtn">Previous</button>
+    <button id="nextBtn">Next</button>
+  </div>
+</div>
+
+<script>
+const raw=[
+ {est:'E-1001',name:'Acme Manufacturing',ind:'Manufacturing',workers:120},
+ {est:'E-1002',name:'TechNova',ind:'IT',workers:45},
+ {est:'E-1003',name:'ShopMart',ind:'Retail',workers:80},
+ {est:'E-1004',name:'BuildCo',ind:'Manufacturing',workers:95},
+ {est:'E-1005',name:'DataSys',ind:'IT',workers:60},
+ {est:'E-1006',name:'QuickBuy',ind:'Retail',workers:55},
+ {est:'E-1007',name:'WholesaleHub',ind:'Wholesale',workers:70},
+ {est:'E-1008',name:'MegaWorks',ind:'Manufacturing',workers:150},
+ {est:'E-1009',name:'CodeCraft',ind:'IT',workers:35},
+ {est:'E-1010',name:'FreshMart',ind:'Retail',workers:40},
+ {est:'E-1011',name:'TradeLink',ind:'Wholesale',workers:90},
+ {est:'E-1012',name:'ByteWorks',ind:'IT',workers:50}
+];
+const industries=['Manufacturing','IT','Retail','Wholesale'];
+const colorKey={Manufacturing:'manu',IT:'it',Retail:'retail',Wholesale:'wholesale'};
+const totals={};
+industries.forEach(i=>totals[i]=0);
+raw.forEach(r=>totals[r.ind]+=r.workers);
+const grandTotal=industries.reduce((s,i)=>s+totals[i],0);
+const labels={1:'Step 1: Raw establishment data',2:'Step 2: Group and sum by industry',3:'Step 3: Calculate percent of total workers'};
+
+let step=1;
+const stage=document.getElementById('stage');
+
+function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
+function badge(ind){
+  const key=colorKey[ind];
+  return '<span class="ind-badge" style="background:var(--ind-'+key+'-bg);color:var(--ind-'+key+'-text)">'+ind+'</span>';
+}
+function renderDots(){
+  const dotsEl=document.getElementById('dots');
+  dotsEl.innerHTML='';
+  for(let i=1;i<=3;i++){
+    const d=document.createElement('div');
+    d.className='dot'+(i===step?' active':'');
+    dotsEl.appendChild(d);
+  }
+  document.getElementById('stepLabel').textContent=labels[step];
+}
+
+function renderStep1(){
+  const rows=raw.map((r,i)=>'<tr class="fade-row" style="animation-delay:'+(i*70)+'ms"><td>'+r.est+'</td><td>'+r.name+'</td><td>'+badge(r.ind)+'</td><td>'+r.workers+'</td></tr>').join('');
+  stage.innerHTML='<table><thead><tr><th>Establishment #</th><th>Company name</th><th>Industry</th><th>Workers</th></tr></thead><tbody>'+rows+'</tbody></table>';
+}
+
+function renderStep2(){
+  const sortedRaw=[...raw].sort((a,b)=>industries.indexOf(a.ind)-industries.indexOf(b.ind));
+  const leftRows=sortedRaw.map((r,i)=>'<tr class="fade-row" id="row2-'+i+'" style="animation-delay:'+(i*40)+'ms"><td>'+r.est+'</td><td class="ellipsis">'+r.name+'</td><td>'+badge(r.ind)+'</td><td>'+r.workers+'</td></tr>').join('');
+  const rightRows=industries.map(ind=>{
+    const key=colorKey[ind];
+    return '<tr id="aggrow-'+key+'"><td>'+badge(ind)+'</td><td class="calc-cell" id="aggval-'+key+'">—</td></tr>';
+  }).join('');
+  stage.innerHTML=
+    '<div class="side-by-side">'+
+      '<div class="panel"><h3>Raw data (grouped by industry)</h3><table class="compact"><thead><tr><th>Est#</th><th>Company</th><th>Industry</th><th>Workers</th></tr></thead><tbody>'+leftRows+'</tbody></table></div>'+
+      '<div class="arrow-mid"><span class="arrow-ico">&#8594;</span><span class="arrow-label">group &amp; sum</span></div>'+
+      '<div class="panel"><h3>Aggregated totals</h3><table class="compact"><thead><tr><th>Industry</th><th>Total workers</th></tr></thead><tbody>'+rightRows+'</tbody><tfoot><tr><td style="font-weight:500">Total</td><td style="font-weight:500" id="aggtotal">0</td></tr></tfoot></table></div>'+
+    '</div>'+
+    '<div style="text-align:center;margin-top:1rem"><button id="play2">Group and add up</button></div>';
+  document.getElementById('play2').addEventListener('click',()=>animateStep2(sortedRaw));
+}
+
+async function animateStep2(sortedRaw){
+  const btn=document.getElementById('play2');
+  btn.disabled=true;
+  const running={};
+  const parts={};
+  industries.forEach(i=>{running[i]=0; parts[colorKey[i]]=[];});
+  let runningTotal=0;
+  for(let i=0;i<sortedRaw.length;i++){
+    const r=sortedRaw[i];
+    const rowEl=document.getElementById('row2-'+i);
+    rowEl.classList.add('active-row');
+    const key=colorKey[r.ind];
+    const aggRowEl=document.getElementById('aggrow-'+key);
+    aggRowEl.classList.add('active-row');
+    running[r.ind]+=r.workers;
+    runningTotal+=r.workers;
+    parts[key].push(r.workers);
+    const isLastOfGroup=(i===sortedRaw.length-1)||(sortedRaw[i+1].ind!==r.ind);
+    const cellText=isLastOfGroup?(parts[key].join(' + ')+' = '+running[r.ind]):parts[key].join(' + ');
+    document.getElementById('aggval-'+key).textContent=cellText;
+    document.getElementById('aggtotal').textContent=runningTotal;
+    await sleep(700);
+    rowEl.classList.remove('active-row');
+    aggRowEl.classList.remove('active-row');
+  }
+}
+
+function renderStep3(){
+  const rows=industries.map(ind=>'<tr id="row3-'+colorKey[ind]+'"><td>'+badge(ind)+'</td><td>'+totals[ind]+'</td><td class="calc-cell" id="pct-'+colorKey[ind]+'">—</td></tr>').join('');
+  stage.innerHTML=
+    '<table style="margin-bottom:.75rem"><thead><tr><th>Industry</th><th>Total workers</th><th>% of workers</th></tr></thead><tbody>'+rows+'</tbody><tfoot><tr><td style="font-weight:500">Total</td><td style="font-weight:500">'+grandTotal+'</td><td style="font-weight:500" id="pct-total">—</td></tr></tfoot></table>'+
+    '<div style="text-align:center"><button id="play3">Calculate percentages</button></div>';
+  document.getElementById('play3').addEventListener('click',animateStep3);
+}
+
+async function animateStep3(){
+  const btn=document.getElementById('play3');
+  btn.disabled=true;
+  let sumPct=0;
+  for(const ind of industries){
+    const key=colorKey[ind];
+    const rowEl=document.getElementById('row3-'+key);
+    rowEl.classList.add('active-row');
+    const cellEl=document.getElementById('pct-'+key);
+    const pct=totals[ind]/grandTotal*100;
+    cellEl.textContent=totals[ind]+' \u00F7 '+grandTotal;
+    await sleep(500);
+    cellEl.textContent=totals[ind]+' \u00F7 '+grandTotal+' \u00D7 100 = '+pct.toFixed(1)+'%';
+    sumPct+=pct;
+    await sleep(400);
+    rowEl.classList.remove('active-row');
+  }
+  document.getElementById('pct-total').textContent=Math.round(sumPct)+'%';
+}
+
+function render(){
+  renderDots();
+  if(step===1)renderStep1();
+  else if(step===2)renderStep2();
+  else renderStep3();
+  document.getElementById('prevBtn').disabled=(step===1);
+  document.getElementById('nextBtn').textContent=(step===3?'Restart':'Next');
+}
+
+document.getElementById('prevBtn').addEventListener('click',()=>{if(step>1){step--;render();}});
+document.getElementById('nextBtn').addEventListener('click',()=>{
+  if(step<3){step++;}else{step=1;}
+  render();
+});
+
+render();
+</script>
+</body>
+</html>
