@@ -1,0 +1,1126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Scatter Plotter</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --bg: #FFFFFF;
+    --panel: #FFFFFF;
+    --panel-raised: #F3F4F1;
+    --ink: #1B2320;
+    --ink-dim: #5C6B67;
+    --ink-faint: #8B9793;
+    --line: #E1E4E0;
+    --line-strong: #CBD0CB;
+    --grid-minor: #F1F2EF;
+    --grid-major: #DEE1DC;
+    --accent: #C4700F;
+    --accent-dim: #EFD3AC;
+    --accent2: #16799C;
+    --danger: #B23B2C;
+    --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+    --sans: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, sans-serif;
+    --cat-1: #C4700F;
+    --cat-2: #16799C;
+    --cat-3: #8E4C97;
+    --cat-4: #3F7A31;
+    --cat-5: #9A8412;
+    --cat-6: #B3435E;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg: #FFFFFF; --panel:#FFFFFF; --panel-raised:#F3F4F1; --ink:#1B2320;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg: #FFFFFF; --panel:#FFFFFF; --panel-raised:#F3F4F1; --ink:#1B2320;
+  }
+
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:var(--sans);
+    line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+    min-height:100vh;
+  }
+  body::before{
+    content:"";
+    position:fixed;
+    inset:0;
+    background-image:
+      linear-gradient(var(--grid-minor) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid-minor) 1px, transparent 1px);
+    background-size:28px 28px;
+    pointer-events:none;
+    opacity:.5;
+    z-index:0;
+  }
+  .wrap{
+    position:relative;
+    z-index:1;
+    max-width:840px;
+    margin:0 auto;
+    padding:56px 24px 100px;
+  }
+
+  header{margin-bottom:40px;}
+  .kicker{
+    font-family:var(--mono);
+    font-size:12.5px;
+    color:var(--accent);
+    letter-spacing:.02em;
+    margin:0 0 10px;
+  }
+  h1{
+    font-size:32px;
+    font-weight:600;
+    margin:0 0 10px;
+    letter-spacing:-0.01em;
+  }
+  header p{
+    color:var(--ink-dim);
+    max-width:52ch;
+    margin:0;
+    font-size:15px;
+  }
+
+  .step{
+    border:1px solid var(--line);
+    background:var(--panel);
+    margin-bottom:2px;
+    display:none;
+  }
+  .step.visible{display:block;}
+  .step-head{
+    display:flex;
+    align-items:baseline;
+    gap:10px;
+    padding:18px 24px;
+    border-bottom:1px solid var(--line);
+  }
+  .step-num{
+    font-family:var(--mono);
+    font-size:13px;
+    color:var(--ink-faint);
+  }
+  .step-title{
+    font-size:15px;
+    font-weight:600;
+    margin:0;
+  }
+  .step-body{padding:24px;}
+
+  /* tabs */
+  .tabs{display:flex; gap:2px; margin-bottom:16px;}
+  .tab-btn{
+    font-family:var(--sans);
+    font-size:13.5px;
+    color:var(--ink-dim);
+    background:transparent;
+    border:1px solid var(--line);
+    padding:8px 16px;
+    cursor:pointer;
+  }
+  .tab-btn.active{
+    color:var(--ink);
+    background:var(--panel-raised);
+    border-color:var(--line-strong);
+  }
+  .tab-panel{display:none;}
+  .tab-panel.active{display:block;}
+
+  textarea{
+    width:100%;
+    min-height:150px;
+    background:var(--bg);
+    border:1px solid var(--line);
+    color:var(--ink);
+    font-family:var(--mono);
+    font-size:13px;
+    padding:14px;
+    resize:vertical;
+    outline:none;
+  }
+  textarea:focus{border-color:var(--accent2);}
+  textarea::placeholder{color:var(--ink-faint);}
+
+  .dropzone{
+    border:1px dashed var(--line-strong);
+    padding:34px 20px;
+    text-align:center;
+    color:var(--ink-dim);
+    font-size:13.5px;
+    cursor:pointer;
+  }
+  .dropzone:hover{border-color:var(--accent2); color:var(--ink);}
+  .dropzone input{display:none;}
+  .dropzone .fname{
+    font-family:var(--mono);
+    color:var(--accent2);
+    margin-top:6px;
+    font-size:12.5px;
+  }
+
+  .hint{
+    font-family:var(--mono);
+    font-size:12px;
+    color:var(--ink-faint);
+    margin-top:10px;
+  }
+
+  .row-actions{
+    display:flex;
+    align-items:center;
+    gap:14px;
+    margin-top:20px;
+  }
+  button.primary{
+    font-family:var(--sans);
+    font-weight:600;
+    font-size:13.5px;
+    color:#FFFFFF;
+    background:var(--accent);
+    border:1px solid var(--accent);
+    padding:10px 20px;
+    cursor:pointer;
+    transition:transform .12s ease, background .15s ease;
+  }
+  button.primary:hover{background:#A85F0C;}
+  button.primary:active{transform:scale(.97);}
+  button.primary:disabled{
+    background:var(--panel-raised);
+    border-color:var(--line-strong);
+    color:var(--ink-faint);
+    cursor:not-allowed;
+    transform:none;
+  }
+  button.secondary{
+    font-family:var(--sans);
+    font-weight:500;
+    font-size:13.5px;
+    color:var(--ink);
+    background:transparent;
+    border:1px solid var(--line-strong);
+    padding:10px 20px;
+    cursor:pointer;
+    transition:border-color .15s ease, color .15s ease;
+  }
+  button.secondary:hover{border-color:var(--accent2); color:var(--accent2);}
+  button.secondary:disabled{
+    color:var(--ink-faint);
+    border-color:var(--line);
+    cursor:not-allowed;
+  }
+  .text-link{
+    font-family:var(--mono);
+    font-size:12.5px;
+    color:var(--ink-faint);
+    background:none;
+    border:none;
+    text-decoration:underline;
+    cursor:pointer;
+    padding:0;
+  }
+  .text-link:hover{color:var(--accent2);}
+
+  .error-msg{
+    font-family:var(--mono);
+    font-size:12.5px;
+    color:var(--danger);
+    margin-top:14px;
+    display:none;
+  }
+  .error-msg.visible{display:block;}
+
+  /* table */
+  .table-scroll{
+    overflow-x:auto;
+    border:1px solid var(--line);
+  }
+  table{
+    width:100%;
+    border-collapse:collapse;
+    font-family:var(--mono);
+    font-size:13px;
+  }
+  thead th{
+    text-align:left;
+    padding:10px 16px;
+    background:var(--panel-raised);
+    color:var(--ink-dim);
+    font-weight:500;
+    border-bottom:1px solid var(--line-strong);
+    white-space:nowrap;
+  }
+  thead th .col-tag{
+    display:block;
+    font-size:10.5px;
+    color:var(--accent);
+    margin-top:2px;
+  }
+  tbody td{
+    padding:8px 16px;
+    border-bottom:1px solid var(--line);
+    color:var(--ink);
+    white-space:nowrap;
+  }
+  tbody tr:last-child td{border-bottom:none;}
+  tbody tr.plotted{color:var(--ink);}
+  tbody tr:not(.plotted){color:var(--ink-faint);}
+  tbody tr td:first-child{color:var(--ink-faint); font-size:11.5px;}
+
+  .row-count{
+    font-family:var(--mono);
+    font-size:12px;
+    color:var(--ink-faint);
+    margin-top:10px;
+  }
+
+  /* chart */
+  .chart-toolbar{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    flex-wrap:wrap;
+    gap:12px;
+    margin-bottom:16px;
+  }
+  .btn-group{display:flex; gap:10px;}
+  .status-line{
+    font-family:var(--mono);
+    font-size:12.5px;
+    color:var(--ink-dim);
+    min-height:16px;
+  }
+  .status-line.flash{color:var(--accent);}
+
+  .chart-frame{
+    border:1px solid var(--line);
+    background:var(--bg);
+    padding:8px;
+  }
+  canvas#chart{
+    display:block;
+    width:100%;
+    height:420px;
+  }
+
+  .legend{
+    display:flex;
+    flex-wrap:wrap;
+    gap:16px;
+    margin-top:14px;
+    font-family:var(--mono);
+    font-size:12px;
+    color:var(--ink-dim);
+  }
+  .legend-item{display:flex; align-items:center; gap:7px;}
+  .swatch{width:9px; height:9px; border-radius:50%; display:inline-block;}
+
+  .stats{
+    margin-top:22px;
+    border-top:1px solid var(--line);
+    padding-top:22px;
+    display:none;
+    gap:28px;
+    flex-wrap:wrap;
+  }
+  .stats.visible{display:flex;}
+  .stat{min-width:150px;}
+  .stat-label{
+    font-family:var(--mono);
+    font-size:11.5px;
+    color:var(--ink-faint);
+    margin-bottom:6px;
+  }
+  .stat-value{
+    font-family:var(--mono);
+    font-size:26px;
+    font-weight:600;
+    color:var(--accent2);
+  }
+  .stat-value small{
+    font-size:13px;
+    color:var(--ink-dim);
+    font-weight:400;
+  }
+  .stat-note{
+    font-family:var(--mono);
+    font-size:11.5px;
+    color:var(--ink-faint);
+    margin-top:4px;
+  }
+
+  footer{
+    margin-top:28px;
+    text-align:right;
+  }
+
+  @media (max-width:600px){
+    .wrap{padding:32px 16px 80px;}
+    h1{font-size:26px;}
+    .step-body{padding:18px;}
+    .stats{gap:20px;}
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    *{animation-duration:.001s !important; transition-duration:.001s !important;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <p class="kicker">// scatter plotter</p>
+    <h1>Plot two variables, one category at a time.</h1>
+    <p>Bring in a categorical column and two continuous columns — paste them in, or upload a CSV or Excel file. Review the table, then plot the points one by one, or all at once, to see how they correlate.</p>
+  </header>
+
+  <!-- STEP 1: INPUT -->
+  <section class="step visible" id="step-input">
+    <div class="step-head">
+      <span class="step-num">01</span>
+      <h2 class="step-title">Bring in your data</h2>
+    </div>
+    <div class="step-body">
+      <div class="tabs">
+        <button class="tab-btn active" data-tab="paste">Paste data</button>
+        <button class="tab-btn" data-tab="upload">Upload file</button>
+      </div>
+
+      <div class="tab-panel active" data-panel="paste">
+        <textarea id="pasteArea" spellcheck="false" placeholder="Category, X, Y&#10;North, 12.4, 88.1&#10;South, 9.7, 71.5&#10;North, 15.2, 95.0&#10;East, 6.1, 52.3&#10;...">Category, X, Y
+North, 12.4, 88.1
+South, 9.7, 71.5
+North, 15.2, 95.0
+East, 6.1, 52.3
+West, 18.9, 102.4
+North, 11.0, 80.6
+South, 8.3, 65.9
+East, 5.4, 48.0
+West, 20.1, 110.2
+South, 10.6, 74.8
+North, 16.7, 99.1
+East, 7.2, 55.6
+West, 19.4, 106.7
+South, 9.1, 68.4</textarea>
+        <p class="hint">First row is the header. Columns can be comma- or tab-separated.</p>
+      </div>
+
+      <div class="tab-panel" data-panel="upload">
+        <label class="dropzone" id="dropzone">
+          <input type="file" id="fileInput" accept=".csv,.xlsx,.xls,text/csv">
+          <div>Click to choose a .csv, .xlsx or .xls file</div>
+          <div class="fname" id="fileName"></div>
+        </label>
+      </div>
+
+      <p class="error-msg" id="inputError"></p>
+
+      <div class="row-actions">
+        <button class="primary" id="nextBtn">Next →</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- STEP 2: TABLE + CHART -->
+  <section class="step" id="step-review">
+    <div class="step-head">
+      <span class="step-num">02</span>
+      <h2 class="step-title">Check the data</h2>
+      <span style="flex:1"></span>
+      <button class="text-link" id="startOverBtn">start over</button>
+    </div>
+    <div class="step-body">
+      <div class="table-scroll">
+        <table>
+          <thead><tr id="tableHead"></tr></thead>
+          <tbody id="tableBody"></tbody>
+        </table>
+      </div>
+      <p class="row-count" id="rowCount"></p>
+    </div>
+  </section>
+
+  <section class="step" id="step-chart">
+    <div class="step-head">
+      <span class="step-num">03</span>
+      <h2 class="step-title">Plot it</h2>
+    </div>
+    <div class="step-body">
+      <div class="chart-toolbar">
+        <div class="btn-group">
+          <button class="primary" id="plotPointBtn">Plot point</button>
+          <button class="secondary" id="plotAllBtn">Plot all</button>
+        </div>
+        <div class="status-line" id="statusLine">0 / 0 points plotted</div>
+      </div>
+
+      <div class="chart-frame">
+        <canvas id="chart"></canvas>
+      </div>
+
+      <div class="legend" id="legend"></div>
+
+      <div class="stats" id="stats">
+        <div class="stat">
+          <div class="stat-label">correlation (r)</div>
+          <div class="stat-value" id="statR">—</div>
+          <div class="stat-note" id="statRNote"></div>
+        </div>
+        <div class="stat extra-stat" id="statLineWrap" hidden>
+          <div class="stat-label">trend line</div>
+          <div class="stat-value" id="statLine" style="color:var(--accent); font-size:16px;">—</div>
+        </div>
+        <div class="stat extra-stat" id="statR2Wrap" hidden>
+          <div class="stat-label">r²</div>
+          <div class="stat-value" id="statR2">—</div>
+        </div>
+        <button class="secondary" id="toggleTrendBtn" style="align-self:flex-start;" hidden>Show trend line</button>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <button class="text-link" id="resetAll">reset everything</button>
+  </footer>
+
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------- state ----------
+  var state = {
+    headers: [],
+    colRoles: {cat:0, x:1, y:2},
+    rows: [],           // [{cat, x, y}]
+    plotted: [],        // array of booleans, index-aligned with rows
+    plottedCount: 0,
+    catColors: {},
+    scale: null,        // {x0,y0,x1,y1, minX,maxX,minY,maxY, padL,padR,padT,padB, w,h}
+    animating: false,
+    allDone: false,
+    showTrend: false
+  };
+  var CAT_PALETTE = ["--cat-1","--cat-2","--cat-3","--cat-4","--cat-5","--cat-6"];
+
+  function cssVar(name){
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  }
+
+  // ---------- tabs ----------
+  var tabBtns = document.querySelectorAll(".tab-btn");
+  tabBtns.forEach(function(btn){
+    btn.addEventListener("click", function(){
+      tabBtns.forEach(function(b){ b.classList.remove("active"); });
+      btn.classList.add("active");
+      document.querySelectorAll(".tab-panel").forEach(function(p){ p.classList.remove("active"); });
+      document.querySelector('.tab-panel[data-panel="' + btn.dataset.tab + '"]').classList.add("active");
+    });
+  });
+
+  // ---------- file upload ----------
+  var fileInput = document.getElementById("fileInput");
+  var fileNameEl = document.getElementById("fileName");
+  var uploadedRows = null; // array of arrays, from excel/csv file
+
+  fileInput.addEventListener("change", function(e){
+    var file = e.target.files[0];
+    if(!file) return;
+    fileNameEl.textContent = file.name;
+    var ext = file.name.split(".").pop().toLowerCase();
+
+    if(ext === "csv"){
+      var reader = new FileReader();
+      reader.onload = function(ev){
+        uploadedRows = parseDelimited(ev.target.result);
+      };
+      reader.readAsText(file);
+    } else {
+      var reader2 = new FileReader();
+      reader2.onload = function(ev){
+        try{
+          var data = new Uint8Array(ev.target.result);
+          var wb = XLSX.read(data, {type:"array"});
+          var sheet = wb.Sheets[wb.SheetNames[0]];
+          uploadedRows = XLSX.utils.sheet_to_json(sheet, {header:1, raw:true, defval:""});
+        }catch(err){
+          showError("Couldn't read that file. Make sure it's a valid .xlsx or .xls workbook.");
+        }
+      };
+      reader2.readAsArrayBuffer(file);
+    }
+  });
+
+  // ---------- parsing ----------
+  function parseDelimited(text){
+    text = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n").trim();
+    if(!text) return [];
+    var delim = text.indexOf("\t") > -1 && text.split("\n")[0].indexOf(",") === -1 ? "\t" : ",";
+    var lines = text.split("\n").filter(function(l){ return l.trim().length; });
+    return lines.map(function(line){
+      var out = [], cur = "", inQuotes = false;
+      for(var i=0;i<line.length;i++){
+        var ch = line[i];
+        if(ch === '"'){
+          if(inQuotes && line[i+1] === '"'){ cur += '"'; i++; }
+          else { inQuotes = !inQuotes; }
+        } else if(ch === delim && !inQuotes){
+          out.push(cur); cur = "";
+        } else {
+          cur += ch;
+        }
+      }
+      out.push(cur);
+      return out.map(function(v){ return v.trim(); });
+    });
+  }
+
+  function isNumeric(v){
+    if(v === "" || v === null || v === undefined) return false;
+    return !isNaN(parseFloat(v)) && isFinite(String(v).replace(/,/g,""));
+  }
+
+  function buildDataset(rawRows){
+    if(!rawRows || rawRows.length < 2) throw new Error("Need a header row plus at least one data row.");
+    var header = rawRows[0].map(function(h){ return String(h).trim(); });
+    var body = rawRows.slice(1).filter(function(r){ return r.some(function(c){ return String(c).trim() !== ""; }); });
+    if(header.length < 3) throw new Error("Expected three columns — one category and two numbers.");
+
+    // limit to first 3 columns
+    header = header.slice(0,3);
+    body = body.map(function(r){ return r.slice(0,3); });
+
+    // find which column is non-numeric (categorical): majority-vote per column
+    var numericScore = [0,0,0];
+    body.forEach(function(r){
+      for(var c=0;c<3;c++){
+        if(isNumeric(r[c])) numericScore[c]++;
+      }
+    });
+    var catIdx = 0, lowest = Infinity;
+    for(var c=0;c<3;c++){
+      if(numericScore[c] < lowest){ lowest = numericScore[c]; catIdx = c; }
+    }
+    var otherIdx = [0,1,2].filter(function(i){ return i !== catIdx; });
+    var xIdx = otherIdx[0], yIdx = otherIdx[1];
+
+    var rows = body.map(function(r){
+      return {
+        cat: String(r[catIdx]).trim(),
+        x: parseFloat(String(r[xIdx]).replace(/,/g,"")),
+        y: parseFloat(String(r[yIdx]).replace(/,/g,""))
+      };
+    }).filter(function(r){ return r.cat !== "" && !isNaN(r.x) && !isNaN(r.y); });
+
+    if(rows.length < 2) throw new Error("Couldn't find at least two valid rows with a category and two numbers.");
+
+    return {
+      headers: [header[catIdx], header[xIdx], header[yIdx]],
+      rows: rows
+    };
+  }
+
+  // ---------- errors ----------
+  var errorEl = document.getElementById("inputError");
+  function showError(msg){
+    errorEl.textContent = msg;
+    errorEl.classList.add("visible");
+  }
+  function clearError(){
+    errorEl.textContent = "";
+    errorEl.classList.remove("visible");
+  }
+
+  // ---------- next button ----------
+  document.getElementById("nextBtn").addEventListener("click", function(){
+    clearError();
+    var activeTab = document.querySelector(".tab-btn.active").dataset.tab;
+    var raw;
+    try{
+      if(activeTab === "paste"){
+        raw = parseDelimited(document.getElementById("pasteArea").value);
+      } else {
+        if(!uploadedRows) throw new Error("Choose a file first.");
+        raw = uploadedRows;
+      }
+      var ds = buildDataset(raw);
+      state.headers = ds.headers;
+      state.rows = ds.rows;
+      state.plotted = ds.rows.map(function(){ return false; });
+      state.plottedCount = 0;
+      state.allDone = false;
+      assignCategoryColors();
+      renderTable();
+      renderLegend();
+      document.getElementById("step-review").classList.add("visible");
+      document.getElementById("step-chart").classList.add("visible");
+      document.getElementById("stats").classList.remove("visible");
+      resetChartUI();
+      initChart();
+      document.getElementById("step-review").scrollIntoView({behavior:"smooth", block:"start"});
+    }catch(err){
+      showError(err.message || "Something's off with that data. Check it has a header row and three columns.");
+    }
+  });
+
+  function assignCategoryColors(){
+    var cats = [];
+    state.rows.forEach(function(r){ if(cats.indexOf(r.cat) === -1) cats.push(r.cat); });
+    state.catColors = {};
+    cats.forEach(function(c, i){
+      state.catColors[c] = cssVar(CAT_PALETTE[i % CAT_PALETTE.length]);
+    });
+  }
+
+  function renderLegend(){
+    var legend = document.getElementById("legend");
+    legend.innerHTML = "";
+    Object.keys(state.catColors).forEach(function(cat){
+      var item = document.createElement("div");
+      item.className = "legend-item";
+      item.innerHTML = '<span class="swatch" style="background:' + state.catColors[cat] + '"></span>' + escapeHtml(cat);
+      legend.appendChild(item);
+    });
+  }
+
+  function escapeHtml(s){
+    var d = document.createElement("div");
+    d.textContent = s;
+    return d.innerHTML;
+  }
+
+  // ---------- table ----------
+  function renderTable(){
+    var head = document.getElementById("tableHead");
+    head.innerHTML =
+      '<th>#</th>' +
+      '<th>' + escapeHtml(state.headers[0]) + '<span class="col-tag">category</span></th>' +
+      '<th>' + escapeHtml(state.headers[1]) + '<span class="col-tag">continuous</span></th>' +
+      '<th>' + escapeHtml(state.headers[2]) + '<span class="col-tag">continuous</span></th>';
+
+    var body = document.getElementById("tableBody");
+    body.innerHTML = "";
+    state.rows.forEach(function(r, i){
+      var tr = document.createElement("tr");
+      tr.id = "row-" + i;
+      tr.innerHTML =
+        '<td>' + (i+1) + '</td>' +
+        '<td>' + escapeHtml(r.cat) + '</td>' +
+        '<td>' + r.x + '</td>' +
+        '<td>' + r.y + '</td>';
+      body.appendChild(tr);
+    });
+    document.getElementById("rowCount").textContent = state.rows.length + " rows read.";
+  }
+
+  function markRowPlotted(i){
+    var tr = document.getElementById("row-" + i);
+    if(tr) tr.classList.add("plotted");
+  }
+
+  // ---------- chart ----------
+  var canvas = document.getElementById("chart");
+  var ctx = canvas.getContext("2d");
+  var dpr = window.devicePixelRatio || 1;
+
+  function resizeCanvas(){
+    var rect = canvas.getBoundingClientRect();
+    canvas.width = Math.round(rect.width * dpr);
+    canvas.height = Math.round(rect.height * dpr);
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    computeScale(rect.width, rect.height);
+    drawStatic();
+  }
+  window.addEventListener("resize", debounce(resizeCanvas, 150));
+
+  function debounce(fn, ms){
+    var t;
+    return function(){
+      clearTimeout(t);
+      var args = arguments;
+      t = setTimeout(function(){ fn.apply(null, args); }, ms);
+    };
+  }
+
+  function niceBounds(min, max){
+    if(min === max){ min -= 1; max += 1; }
+    var pad = (max - min) * 0.12;
+    return {min: min - pad, max: max + pad};
+  }
+
+  function computeScale(w, h){
+    var xs = state.rows.map(function(r){ return r.x; });
+    var ys = state.rows.map(function(r){ return r.y; });
+    var xb = niceBounds(Math.min.apply(null, xs), Math.max.apply(null, xs));
+    var yb = niceBounds(Math.min.apply(null, ys), Math.max.apply(null, ys));
+
+    var padL = 56, padR = 20, padT = 20, padB = 44;
+    state.scale = {
+      w:w, h:h, padL:padL, padR:padR, padT:padT, padB:padB,
+      minX: xb.min, maxX: xb.max, minY: yb.min, maxY: yb.max
+    };
+  }
+
+  function sx(v){
+    var s = state.scale;
+    return s.padL + (v - s.minX) / (s.maxX - s.minX) * (s.w - s.padL - s.padR);
+  }
+  function sy(v){
+    var s = state.scale;
+    return s.h - s.padB - (v - s.minY) / (s.maxY - s.minY) * (s.h - s.padT - s.padB);
+  }
+
+  function niceStep(range, targetTicks){
+    var rough = range / targetTicks;
+    var mag = Math.pow(10, Math.floor(Math.log10(rough)));
+    var norm = rough / mag;
+    var step;
+    if(norm < 1.5) step = 1;
+    else if(norm < 3) step = 2;
+    else if(norm < 7) step = 5;
+    else step = 10;
+    return step * mag;
+  }
+
+  function drawGrid(){
+    var s = state.scale;
+    ctx.clearRect(0,0,s.w,s.h);
+
+    var lineCol = cssVar("--grid-major");
+    var textCol = cssVar("--ink-faint");
+
+    ctx.strokeStyle = lineCol;
+    ctx.lineWidth = 1;
+    ctx.font = "11px " + '"IBM Plex Mono", monospace';
+    ctx.fillStyle = textCol;
+
+    var xStep = niceStep(s.maxX - s.minX, 6);
+    var yStep = niceStep(s.maxY - s.minY, 6);
+
+    var xStart = Math.ceil(s.minX / xStep) * xStep;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "top";
+    for(var xv = xStart; xv <= s.maxX; xv += xStep){
+      var px = sx(xv);
+      ctx.beginPath();
+      ctx.moveTo(px, s.padT);
+      ctx.lineTo(px, s.h - s.padB);
+      ctx.stroke();
+      ctx.fillText(formatTick(xv), px, s.h - s.padB + 8);
+    }
+
+    var yStart = Math.ceil(s.minY / yStep) * yStep;
+    ctx.textAlign = "right";
+    ctx.textBaseline = "middle";
+    for(var yv = yStart; yv <= s.maxY; yv += yStep){
+      var py = sy(yv);
+      ctx.beginPath();
+      ctx.moveTo(s.padL, py);
+      ctx.lineTo(s.w - s.padR, py);
+      ctx.stroke();
+      ctx.fillText(formatTick(yv), s.padL - 8, py);
+    }
+
+    // axes
+    ctx.strokeStyle = cssVar("--line-strong");
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(s.padL, s.padT);
+    ctx.lineTo(s.padL, s.h - s.padB);
+    ctx.lineTo(s.w - s.padR, s.h - s.padB);
+    ctx.stroke();
+
+    // axis titles
+    ctx.fillStyle = cssVar("--ink-dim");
+    ctx.font = "12px " + '"IBM Plex Mono", monospace';
+    ctx.textAlign = "center";
+    ctx.textBaseline = "alphabetic";
+    ctx.fillText(state.headers[1] || "x", (s.padL + s.w - s.padR)/2, s.h - 6);
+
+    ctx.save();
+    ctx.translate(14, (s.padT + s.h - s.padB)/2);
+    ctx.rotate(-Math.PI/2);
+    ctx.fillText(state.headers[2] || "y", 0, 0);
+    ctx.restore();
+  }
+
+  function formatTick(v){
+    if(Math.abs(v) >= 1000) return (v/1000).toFixed(1) + "k";
+    if(Number.isInteger(v)) return String(v);
+    return v.toFixed(1);
+  }
+
+  function drawPoint(x, y, color, radius, alpha){
+    ctx.save();
+    ctx.globalAlpha = alpha === undefined ? 1 : alpha;
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(x, y, radius, 0, Math.PI*2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawStatic(){
+    if(!state.scale) return;
+    drawGrid();
+    state.rows.forEach(function(r, i){
+      if(state.plotted[i]){
+        var col = state.catColors[r.cat];
+        drawPoint(sx(r.x), sy(r.y), col, 4.5, 1);
+      }
+    });
+    if(state.allDone && state.showTrend){
+      drawTrendLineStatic(1);
+    }
+  }
+
+  function initChart(){
+    resizeCanvas();
+  }
+
+  function resetChartUI(){
+    state.plotted = state.rows.map(function(){ return false; });
+    state.plottedCount = 0;
+    state.allDone = false;
+    state.showTrend = false;
+    updateStatus();
+    document.getElementById("plotPointBtn").disabled = false;
+    document.getElementById("plotAllBtn").disabled = false;
+    document.getElementById("plotPointBtn").textContent = "Plot point";
+    document.getElementById("toggleTrendBtn").hidden = true;
+    document.getElementById("statLineWrap").hidden = true;
+    document.getElementById("statR2Wrap").hidden = true;
+  }
+
+  function updateStatus(flashMsg){
+    var el = document.getElementById("statusLine");
+    if(flashMsg){
+      el.textContent = flashMsg;
+      el.classList.add("flash");
+    } else {
+      el.textContent = state.plottedCount + " / " + state.rows.length + " points plotted";
+      el.classList.remove("flash");
+    }
+  }
+
+  // ---------- animation: single point ----------
+  var easeOutBack = function(t){
+    var c1 = 1.70158, c3 = c1 + 1;
+    return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
+  };
+
+  function animatePoint(idx, duration, done){
+    var r = state.rows[idx];
+    var col = state.catColors[r.cat];
+    var px = sx(r.x), py = sy(r.y);
+    var start = null;
+
+    function frame(ts){
+      if(start === null) start = ts;
+      var t = Math.min(1, (ts - start) / duration);
+      drawStatic(); // draws all previously plotted points
+      // expanding fading ring
+      var ringR = 4.5 + t * 16;
+      drawPoint(px, py, col, ringR, (1 - t) * 0.35);
+      // growing point
+      var pr = Math.max(0, easeOutBack(t)) * 4.5;
+      drawPoint(px, py, col, pr, 1);
+
+      if(t < 1){
+        requestAnimationFrame(frame);
+      } else {
+        state.plotted[idx] = true;
+        state.plottedCount++;
+        markRowPlotted(idx);
+        drawStatic();
+        if(done) done();
+      }
+    }
+    requestAnimationFrame(frame);
+  }
+
+  function nextUnplottedIndex(){
+    for(var i=0;i<state.rows.length;i++){
+      if(!state.plotted[i]) return i;
+    }
+    return -1;
+  }
+
+  // ---------- stats ----------
+  function computeStats(){
+    var n = state.rows.length;
+    var xs = state.rows.map(function(r){ return r.x; });
+    var ys = state.rows.map(function(r){ return r.y; });
+    var mx = xs.reduce(function(a,b){return a+b;},0) / n;
+    var my = ys.reduce(function(a,b){return a+b;},0) / n;
+    var sxy = 0, sxx = 0, syy = 0;
+    for(var i=0;i<n;i++){
+      var dx = xs[i]-mx, dy = ys[i]-my;
+      sxy += dx*dy; sxx += dx*dx; syy += dy*dy;
+    }
+    var r = sxy / Math.sqrt(sxx*syy);
+    var slope = sxy / sxx;
+    var intercept = my - slope*mx;
+    return {r:r, slope:slope, intercept:intercept, meanX:mx, meanY:my};
+  }
+
+  var trendStats = null;
+
+  function finishAllPlotted(){
+    state.allDone = true;
+    state.showTrend = false;
+    trendStats = computeStats();
+    showStats(trendStats);
+    document.getElementById("plotPointBtn").textContent = "Plot point";
+    updateStatus();
+    drawStatic();
+  }
+
+  function showStats(st){
+    var el = document.getElementById("stats");
+    el.classList.add("visible");
+    document.getElementById("statR").textContent = st.r.toFixed(3);
+    document.getElementById("statR2").textContent = (st.r*st.r).toFixed(3);
+    var strength = Math.abs(st.r) > 0.7 ? "strong" : Math.abs(st.r) > 0.4 ? "moderate" : "weak";
+    var direction = st.r >= 0 ? "positive" : "negative";
+    document.getElementById("statRNote").textContent = strength + ", " + direction;
+    var sign = st.intercept >= 0 ? " + " : " − ";
+    document.getElementById("statLine").textContent =
+      "y = " + st.slope.toFixed(3) + "x" + sign + Math.abs(st.intercept).toFixed(3);
+    document.getElementById("statLineWrap").hidden = true;
+    document.getElementById("statR2Wrap").hidden = true;
+    document.getElementById("toggleTrendBtn").hidden = false;
+    document.getElementById("toggleTrendBtn").textContent = "Show trend line";
+  }
+
+  document.getElementById("toggleTrendBtn").addEventListener("click", function(){
+    if(!state.allDone) return;
+    state.showTrend = !state.showTrend;
+    this.textContent = state.showTrend ? "Hide trend line" : "Show trend line";
+    document.getElementById("statLineWrap").hidden = !state.showTrend;
+    document.getElementById("statR2Wrap").hidden = !state.showTrend;
+    if(state.showTrend){
+      animateTrendLine();
+    } else {
+      drawStatic();
+    }
+  });
+
+  function drawTrendLineStatic(progress){
+    var s = state.scale;
+    if(!trendStats) return;
+    var x0 = s.minX, x1 = s.minX + (s.maxX - s.minX) * progress;
+    var y0 = trendStats.slope*x0 + trendStats.intercept;
+    var y1 = trendStats.slope*x1 + trendStats.intercept;
+    ctx.save();
+    ctx.strokeStyle = cssVar("--accent2");
+    ctx.lineWidth = 2;
+    ctx.setLineDash([]);
+    ctx.beginPath();
+    ctx.moveTo(sx(x0), sy(y0));
+    ctx.lineTo(sx(x1), sy(y1));
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function animateTrendLine(){
+    var duration = 650;
+    var start = null;
+    function frame(ts){
+      if(start === null) start = ts;
+      var t = Math.min(1, (ts-start)/duration);
+      drawStatic0(); // grid + points, no trend (avoid double-draw via allDone flag)
+      drawTrendLineStatic(t);
+      if(t < 1) requestAnimationFrame(frame);
+      else { state.allDone = true; drawStatic(); }
+    }
+    function drawStatic0(){
+      drawGrid();
+      state.rows.forEach(function(r, i){
+        if(state.plotted[i]){
+          drawPoint(sx(r.x), sy(r.y), state.catColors[r.cat], 4.5, 1);
+        }
+      });
+    }
+    // temporarily mark not-done so drawStatic() calls elsewhere don't double-draw the line mid animation
+    state.allDone = false;
+    requestAnimationFrame(frame);
+  }
+
+  // ---------- buttons ----------
+  document.getElementById("plotPointBtn").addEventListener("click", function(){
+    if(state.animating) return;
+    if(state.plottedCount >= state.rows.length){
+      updateStatus("All points plotted");
+      setTimeout(function(){ updateStatus(); }, 1600);
+      return;
+    }
+    var idx = nextUnplottedIndex();
+    if(idx === -1) return;
+    state.animating = true;
+    document.getElementById("plotPointBtn").disabled = true;
+    animatePoint(idx, 500, function(){
+      state.animating = false;
+      document.getElementById("plotPointBtn").disabled = false;
+      updateStatus();
+      if(state.plottedCount >= state.rows.length){
+        finishAllPlotted();
+      }
+    });
+  });
+
+  document.getElementById("plotAllBtn").addEventListener("click", function(){
+    if(state.animating) return;
+    if(state.plottedCount >= state.rows.length){
+      updateStatus("All points plotted");
+      setTimeout(function(){ updateStatus(); }, 1600);
+      return;
+    }
+    state.animating = true;
+    document.getElementById("plotPointBtn").disabled = true;
+    document.getElementById("plotAllBtn").disabled = true;
+
+    function step(){
+      var idx = nextUnplottedIndex();
+      if(idx === -1){
+        state.animating = false;
+        document.getElementById("plotPointBtn").disabled = false;
+        document.getElementById("plotAllBtn").disabled = false;
+        finishAllPlotted();
+        return;
+      }
+      animatePoint(idx, 160, function(){
+        updateStatus();
+        step();
+      });
+    }
+    step();
+  });
+
+  // ---------- start over / reset ----------
+  document.getElementById("startOverBtn").addEventListener("click", resetToInput);
+  document.getElementById("resetAll").addEventListener("click", resetToInput);
+
+  function resetToInput(){
+    document.getElementById("step-review").classList.remove("visible");
+    document.getElementById("step-chart").classList.remove("visible");
+    document.getElementById("step-input").scrollIntoView({behavior:"smooth", block:"start"});
+  }
+
+})();
+</script>
+</body>
+</html>
